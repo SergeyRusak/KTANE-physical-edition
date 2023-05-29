@@ -1,6 +1,5 @@
 #include <FastLED.h>
-
-
+#include "SPIslave.h"
 
 #define DATA_PIN 0
 #define CLOCK_PIN 13
@@ -10,8 +9,6 @@
 #define MAX_WIERS 6
 #define START_WIRE 4
 
-
-
 char* wiers;
 CRGB strip[MAX_WIERS];
 int wiers_cnt = 0;
@@ -20,30 +17,25 @@ int right_wire;
 bool is_mistake = false;
 bool is_solve = false;
 bool is_error = false;
-
-
-
-
-
+bool is_first_recive = true;
 
 int detect() {
   int cW(0), cR(0), cG(0), cB(0), cY(0);
   for (int i = 0; i < wiers_cnt; i++) {
-    Serial.print(wiers[i] + "=");
     if (wiers[i] == 'w') {
-      cW += 1;Serial.print("White ");
+      cW += 1;
     } else {
       if (wiers[i] == 'r') {
-        cR += 1; Serial.print("Red ");
+        cR += 1;
       } else {
         if (wiers[i] == 'g') {
-          cG += 1; Serial.print("Green ");
+          cG += 1;
         } else {
           if (wiers[i] == 'b') {
-            cB += 1; Serial.print("Blue ");
+            cB += 1;
           } else {
             if (wiers[i] == 'y') {
-              cY += 1; Serial.print("Yellow ");
+              cY += 1;
             } else {
               is_error = true;
             }
@@ -104,7 +96,7 @@ void init_system() {
 
 
 
-void generate_wiers() {
+void generate_wiers(char data) {
   wiers_cnt = random(3, 7);
   wiers = new char[wiers_cnt];
   for (int i= wiers_cnt; i<MAX_WIERS; i++){
@@ -152,20 +144,21 @@ void generate_wiers() {
 
 void setup() {
   init_system();
-  generate_wiers();
-  delay(2000);
-
-
-
+  SPICommSetup();      
+  
 }
+
+
 void mistake(){
   if(!is_solve){
     digitalWrite(LED_MISTAKE,LOW);
+    SPICommSend(1<<2);
     is_mistake= true;
     }
   }
 void solve(){
   is_solve = true;
+  SPICommSend(1<<3);
   if(is_mistake){
     digitalWrite(LED_MISTAKE,HIGH);
   }
@@ -175,14 +168,28 @@ void solve(){
 
 void loop() {
   if(!is_error){
-  for (int i = START_WIRE; i < START_WIRE + wiers_cnt; i++) {
-    if(ignore_wire[i-START_WIRE]==1)continue;
-    if(digitalRead(i)==HIGH){
-      ignore_wire[i]=1;
-      if(i-START_WIRE == right_wire){solve();}else{mistake();}}
     
+int m = SPICommLoop();
+  if (m >> 8 == 101){
+    
+      generate_wiers(m & 0xFF);
+      is_first_recive = false;          
+      }
     }
-  }else{digitalWrite(LED_ERROR,LOW);}
+
+    if(!is_first_recive){
+      for (int i = START_WIRE; i < START_WIRE + wiers_cnt; i++) {
+        if(ignore_wire[i-START_WIRE]==1)continue;
+        if(digitalRead(i)==HIGH){
+          ignore_wire[i-START_WIRE]=1;
+          if(i-START_WIRE == right_wire){solve();}else{mistake();}
+          }
+        
+        }
+    }else{
+    SPICommSend(1<<1);
+    digitalWrite(LED_ERROR,LOW);
+    }
   
 
 }

@@ -1,37 +1,78 @@
 #include "SPI.h"
 
-#define BUT 7     // кнопка
-byte but[2];
-byte c;
+#define SPI_END_MESSAGE 123
+#define SCLK 13
+#define MISO 12
+#define MOSI 11
+#define SS1 10
+#define SS2 9
+#define SS3 8
+#define SS4 7
+#define SS5 6
+#define SS6 5
 
+
+int slaveid[6] = {10,9,8,7,6,5};
+unsigned long long bufferIn[6] = {0,0,0,0,0,0};
+unsigned long long bufferOut[6] = {0,0,0,0,0,0};
+
+void SPICommSetup(){
+  SPI.begin();
+  for (int i = 0; i<6;i++){
+    pinMode(slaveid[i],OUTPUT);
+    }
+}
+byte SPICommSend(int slaveid, byte type, byte message){
+  bufferOut[slaveid] = (((((bufferOut[slaveid] <<8) | SPI_END_MESSAGE) <<8) | (message)) <<8) | (type);
+  return 0;
+  }
+
+int SPICommRead(int slaveid){
+  bufferIn[slaveid] = bufferIn[slaveid] >> 8;
+  int data = bufferIn[slaveid] & 0xFFFF;
+  bufferIn[slaveid] = bufferIn[slaveid] >> 16;
+  return data;
+  }
+
+
+byte SPICommLoop(){
+
+  for (int i = 0; i<6; i++){
+    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+    digitalWrite (slaveid[i], LOW);
+    while(true){
+    if (bufferOut[i]==0 && (bufferIn[i]& 0xFF == SPI_END_MESSAGE)) break;
+        byte tdata = bufferOut[i] & 0xFF;
+        bufferOut[i] = bufferOut[i] >> 8;
+        byte rdata = SPI.transfer(tdata);
+        if (rdata!=0) bufferIn[i] = (bufferIn[i]<<8) | rdata;
+    }
+    digitalWrite (slaveid[i], HIGH);
+    SPI.endTransaction();
+    }
+    byte stat = 0;
+    for (int i = 0; i<6; i++){
+      stat  = stat << 1;
+      stat |= (bufferIn[i] != SPI_END_MESSAGE)?(1):(0);                
+    }
+    return stat;
+    }
+
+
+
+byte stat;
 void setup() {
-  pinMode(BUT, INPUT);
-  SPI.begin();            // запускаем SPI
-  pinMode(SS, OUTPUT);
-  digitalWrite(SS, HIGH);
+            // запускаем SPI
   Serial.begin(9600);
+  for (int i = 5; i < 11; i++){
+     pinMode(i, OUTPUT);
+    }
+    SPICommSetup();
+
+   delay(1000); 
 }
 
 void loop() {
-  button();
-  // тут размещаем любую обычную программу
-}
-
-void button() {
-  static unsigned long timer;
-  if (timer + 100 > millis()) return;  // опрос кнопок каждые 100 мс
-  but[0] = but[1];
-  but[1] = digitalRead(BUT);
-  if (but[0] && !but[1]) {            // нажали
-    digitalWrite(SS, LOW);
-    c = SPI.transfer(1);              // отправляем единичку, получаем байт в ответ
-    digitalWrite(SS, HIGH);
-    Serial.println(c);                // печатаем полученный байт (счетчик) в монитор
-  } else if (!but[0] && but[1]) {     // отжали
-    digitalWrite(SS, LOW);
-    c = SPI.transfer(0);              // отправляем нолик, получаем байт в ответ
-    digitalWrite(SS, HIGH);
-    Serial.println(c);                // печатаем полученный байт (счетчик) в монитор
-  }
-  timer = millis();
+  byte status = SPICommLoop();
+  
 }
