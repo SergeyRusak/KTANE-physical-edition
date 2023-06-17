@@ -1,23 +1,83 @@
 #include <FastLED.h>
-#include "SPIslave.h"
+#include <SPI.h>
 
+
+#define SPI_END_MESSAGE 123
+#define SCLK 13
+#define MISO 12
+#define MOSI 11
 #define DATA_PIN 0
-#define CLOCK_PIN 13
 #define LED_MISTAKE 3
 #define LED_SOLVE 2
 #define LED_ERROR 1
 #define MAX_WIERS 6
 #define START_WIRE 4
 
+
+unsigned long long bufferIn;
+unsigned long long bufferOut;
+bool received = false;
+
 char* wiers;
-CRGB strip[MAX_WIERS];
+CRGB strip[MAX_WIERS+1];
 int wiers_cnt = 0;
 int ignore_wire[MAX_WIERS]={};
 int right_wire;
 bool is_mistake = false;
 bool is_solve = false;
 bool is_error = false;
-bool is_first_recive = true;
+bool is_setup_recive = true;
+bool startg= false;
+int tags = 0;
+byte tags_H = 0;
+int serial = 0;
+byte serial_H = 0;
+
+
+void SPICommSetup(){
+  Serial.begin(9600);
+  pinMode(MISO,OUTPUT);               
+  SPCR |= _BV(SPE);
+  SPDR = 0;
+  bufferIn = 0;
+  bufferOut = 0;                 
+  received = false;
+  SPI.attachInterrupt(); 
+  }
+
+ISR (SPI_STC_vect)                        
+{
+  if (SPDR == SPI_END_MESSAGE)
+  {
+    received = true;
+  }else{
+    bufferOut = bufferOut<<8; 
+    bufferOut |= SPDR;
+    } 
+  SPDR = bufferIn & 0xFF;
+  bufferIn = bufferIn >> 8;
+}
+
+byte SPICommSend(int message){
+  if (bufferIn >> (8*5) > 0) return 101;
+  bufferIn = ((((bufferIn << 8) | SPI_END_MESSAGE) << (message <= 0xFF)?(8):(16)) | message);
+  return 0;
+}
+
+int SPICommLoop(){
+ if (received){
+ received = false;
+  int message = bufferOut & 0xFF;
+  if (!((message >> 7 == 0) && ((message & 0x0F) ==0))){
+    message = bufferOut & 0xFFFF;
+    bufferOut = bufferOut >> 8;
+  }
+  bufferOut = bufferOut >> 8;
+  return message;
+  }
+  return 0;
+  }
+
 
 int detect() {
   int cW(0), cR(0), cG(0), cB(0), cY(0);
@@ -38,13 +98,13 @@ int detect() {
               cY += 1;
             } else {
               is_error = true;
+              Serial.println("color deyect!");
             }
           }
         }
       }
     }
   }
-  //Serial.println("cW:" + String(cW) + " cR:" + String(cR) + " cG:" + String(cG) + " cB:" + String(cB) + " cY:" + String(cY));
   switch (wiers_cnt) {
     case 3:
       if (cR == 0)return 1;
@@ -96,7 +156,7 @@ void init_system() {
 
 
 
-void generate_wiers(char data) {
+void generate_wiers(int tags_i, int serial_i) {
   wiers_cnt = random(3, 7);
   wiers = new char[wiers_cnt];
   for (int i= wiers_cnt; i<MAX_WIERS; i++){
@@ -132,12 +192,9 @@ void generate_wiers(char data) {
       default:
         is_error = true;
     }
-    //Serial.print(wiers[i]);
   }
-  //Serial.println();
   FastLED.show();
   right_wire = detect();
-  //Serial.println("Right:" + String(right_wire));
 }
 
 
@@ -145,39 +202,57 @@ void generate_wiers(char data) {
 void setup() {
   init_system();
   SPICommSetup();      
-  
+
+  SPICommSend(((0<<3)|4)<<4); // request for serial
+  SPICommSend(((0<<3)|1)<<4); // request for tags
 }
 
 
 void mistake(){
   if(!is_solve){
     digitalWrite(LED_MISTAKE,LOW);
-    SPICommSend(1<<2);
+    SPICommSend(((((1<<3)|3)<<4)<<8)|1);
     is_mistake= true;
     }
   }
+
 void solve(){
   is_solve = true;
-  SPICommSend(1<<3);
+  SPICommSend(((((1<<3)|3)<<4)<<8)|2);
   if(is_mistake){
     digitalWrite(LED_MISTAKE,HIGH);
   }
-  digitalWrite(LED_SOLVE,LOW);
-  
+  digitalWrite(LED_SOLVE,LOW);  
   }
 
 void loop() {
   if(!is_error){
     
 int m = SPICommLoop();
-  if (m >> 8 == 101){
-    
-      generate_wiers(m & 0xFF);
-      is_first_recive = false;          
+if (m !=0){
+  byte qa = m >> (m > 0xFF)?(15):(7);
+  byte type = (m >>(m > 0xFF)?(8):(4)) & 0b0111;
+  byte mess = (m > 0xFF)?(m & 0x0FFFF):(0);
+  
+  if (qa = 1){
+    if (type == 1){tags = mess; tags_H = 1;}
+    if (type == 4){serial = mess; serial_H = 1;}
+    }
+    else{
+      if (type = 7) {}
+      }
+
+
+
+  
+  }
+  if (tags_H !=0 && serial_H != 0 ){
+      generate_wiers(tags, serial);
+      startg = true;          
       }
     }
 
-    if(!is_first_recive){
+    if(startg){
       for (int i = START_WIRE; i < START_WIRE + wiers_cnt; i++) {
         if(ignore_wire[i-START_WIRE]==1)continue;
         if(digitalRead(i)==HIGH){
@@ -187,7 +262,7 @@ int m = SPICommLoop();
         
         }
     }else{
-    SPICommSend(1<<1);
+    SPICommSend(((0<<3)|7)<<4);
     digitalWrite(LED_ERROR,LOW);
     }
   
