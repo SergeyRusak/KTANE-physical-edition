@@ -9,49 +9,34 @@ bool is_error = false;
 byte c = 0;
 byte modules[6];
 int module_quantity = 0;
-void setup() {
-  Wire.begin();       
-  Serial.begin(9600);
-  moduleSearch();
-  if (!is_error){
-    Wire.beginTransmission(45);
-    Wire.write(0b10000001);
-    Wire.endTransmission();
-    Serial.println("Time data sent.");
-  }
-}
 
-void loop() {
-  if (!is_gameover){
-    Wire.requestFrom(45, 1);  
-    while (Wire.available()) {
-      c = Wire.read(); 
-      Serial.println(c,BIN);
-      }
-    if (c & 1 == 1 && !is_gameover){ 
+void moduleInit(){
+  for (int i = 0; i < module_quantity; i++){  //Перебирает все подключённые модули
+    Serial.print("Module ID = ");
+    Serial.print(modules[i]);
+    Serial.print("/ ");
+    if (modules[i] == 45) {
       Wire.beginTransmission(45);
-      Wire.write(0b01100000 | EXPLODED );   
-      Serial.print("Exploded. Status ");
-      Serial.println(0b01100000 | EXPLODED);         
+      Wire.write(0b10000001);
       Wire.endTransmission();
-      is_gameover = true;
+      Serial.println("Timer data sent.");
     }
+    //Условия для других модулей добавляются по мере создания
   }
-  delay(50);
 }
-
 void sendErrors(byte id){
   for (byte i = 0; i < module_quantity; i++){
-    Wire.beginTransmission(i);
-    Wire.write(0b01100000 | ERR );   
-    Serial.print("Error. Status ");
-    Serial.println(0b01100000 | ERR);         
-    Wire.endTransmission();
-    is_gameover = true;
-    is_error = true;
+    if (modules[i] != id){
+      Wire.beginTransmission(i);
+      Wire.write(0b01100000 | ERR );   
+      Serial.print("Error. Status ");
+      Serial.println(0b01100000 | ERR);         
+      Wire.endTransmission();
+      is_gameover = true;
+      is_error = true;
+    }
   }
 }
-
 void moduleSearch(){
   for (byte I = 20; I < 45; I++){
     Wire.beginTransmission(I);
@@ -77,4 +62,32 @@ void moduleSearch(){
     is_gameover = true;
     sendErrors(45);
   }
+}
+
+void setup() {
+  Wire.begin();       
+  Serial.begin(9600);
+  moduleSearch();
+  if (!is_error){
+    moduleInit();
+  }
+}
+
+void loop() {
+  if (!is_gameover){
+    Wire.requestFrom(45, 1);  
+    while (Wire.available()) {
+      c = Wire.read(); 
+      Serial.println(c,BIN);
+    }
+    if (c & 1 == 1 && !is_gameover){ 
+      Wire.beginTransmission(45);
+      Wire.write(0b01100000 | EXPLODED );   
+      Serial.print("Exploded. Status ");
+      Serial.println(0b01100000 | EXPLODED);         
+      Wire.endTransmission();
+      is_gameover = true;
+    }
+  }
+  delay(50);
 }
