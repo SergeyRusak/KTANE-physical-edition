@@ -1,8 +1,9 @@
 #include <QuadDisplay.h>
+#include <Wire.h>
 
 #define DISPLAY_PIN 9
-#include <Wire.h>
-long time_play = 6000000;
+
+long time_play = 0;
 long start_tick_time;
 long cur_time;
 byte mistakes = 0;
@@ -10,53 +11,57 @@ byte mistakes = 0;
 int minutes = 0;
 int seconds = 0;
 int mils = 0;
+
 bool is_exploded = false;
 bool is_solved = false;
-bool game_stoped = false;
+bool game_stopped = true;
+
 void setup() {
-  Wire.begin(8);
-  Serial.begin(9600);// join i2c bus with address #8
-  Wire.onRequest(requestEvent); // register event
+  Wire.begin(45);
+  Serial.begin(9600);
+  Wire.onRequest(requestEvent); 
   Wire.onReceive(receiveEvent);
+  Serial.println("Timer is on. Awaiting time data.");
 }
 
 void loop() {
-  display_update();
-  if(!is_exploded && !is_solved){
-  if (mils<40 && mils>30 && mistakes != 2) tone(2,2217);
-  else if ((mils<10)) tone (2,1865);
-  else noTone(2);
-  }else{
-    noTone(2);
+  if (!game_stopped){
+    display_update();
+    if(!is_exploded && !is_solved){ //Если игра не завершена тем или иным образом
+      if (mils<40 && mils>30 && mistakes != 2) tone(2,2217);  //Играет высокий тон
+      else if ((mils<10)) tone (2,1865);  //Играет низкий тон
+      else noTone(2); //замолкает
+    } else {
+      noTone(2);  //Если игра закончена - просто молчит
     }
-
-  if (is_exploded){
-      tone(2,69,200);
+  
+    if (is_exploded){
+      tone(2,69,200); //Играет мелодию проигрыша
       delay(210);
       tone(2,65,800);
-      game_stoped = true;      
-      
-    while(true){
-      displayClear(DISPLAY_PIN);
-      delay(500);
-      display_update();
-      delay(500);
+      game_stopped = true; //Ставит флаг о проигрыше
+      while(true){  //Уходит в постоянное мигание
+        displayClear(DISPLAY_PIN);
+        delay(500);
+        display_update();
+        delay(500);
       }
-      }
-    
-    
-    if(is_solved && !game_stoped){
-      tone(2,262,200);
+    }
+
+    if(is_solved && !game_stopped){  //Если игра выиграна
+      tone(2,262,200);  //Играет победную мелодию
       delay(260);
       tone(2,262,200);
       delay(210);
       tone(2,392,600);
       delay(660);
-      
-      game_stoped = true;      
-      }
+      game_stopped = true;  //Останавливает игру    
+    }
+  }
 }
+
 void display_update(){
+  displayClear(DISPLAY_PIN);
   displayInt(DISPLAY_PIN, (minutes!=0)?(minutes*100+seconds):(seconds*100+mils),true);
   }
 
@@ -72,29 +77,45 @@ void time_update(){
   }
 
 void requestEvent() {
-  time_update();
-  byte answer = (minutes / 10 == 1 || minutes % 10 == 1 || seconds / 10 == 1 || seconds % 10 == 1 || mils / 10 == 1 || mils % 10 == 1);
-       answer = answer << 1 |(minutes / 10 == 4 || minutes % 10 == 4 || seconds / 10 == 4 || seconds % 10 == 4 || mils / 10 == 4 || mils % 10 == 4); 
-       answer = answer << 1 |(minutes / 10 == 5 || minutes % 10 == 5 || seconds / 10 == 5 || seconds % 10 == 5 || mils / 10 == 5 || mils % 10 == 5);
-       answer = answer << 1 | (time_play <= 0);
-  Serial.print("time_play:");
-  Serial.print(time_play);
-  Serial.print("sendet:");
-  Serial.println(answer,BIN);
-  Wire.write(answer); // respond with message of 6 bytes
+  if (!game_stopped){
+    time_update();
+    byte answer = (minutes / 10 == 1 || minutes % 10 == 1 || seconds / 10 == 1 || seconds % 10 == 1 || mils / 10 == 1 || mils % 10 == 1);
+         answer = answer << 1 |(minutes / 10 == 4 || minutes % 10 == 4 || seconds / 10 == 4 || seconds % 10 == 4 || mils / 10 == 4 || mils % 10 == 4); 
+         answer = answer << 1 |(minutes / 10 == 5 || minutes % 10 == 5 || seconds / 10 == 5 || seconds % 10 == 5 || mils / 10 == 5 || mils % 10 == 5);
+         answer = answer << 1 | (time_play <= 0);
+    Serial.print("time remaining (ms.):");
+    Serial.print(time_play);
+    Serial.print("  / sending data:");
+    Serial.println(answer,BIN);
+    Wire.write(answer); 
+  }
 }
 
 void receiveEvent(int howMany) {
   byte x = 0;
   while(Wire.available()){
-  x = Wire.read();}
-  Serial.print("received:");// receive byte as an integer
-  Serial.println(x&0b00011111 *30*1000,BIN);
+    x = Wire.read();
+  }
+   
+  if(x >> 5 == 0b100){
+    start_tick_time = millis();
+    Serial.print("received time data: ");
+    time_play = (long)(x&0b00011111) * 30 *1000;
+    Serial.println(time_play);
+    
+    game_stopped = false;
+  }
   
-  if(x >> 5 == 0b100){time_play = (long)(x&0b00011111) * 30 *1000;}
   if(x >> 5 == 0b011){
+    Serial.print("System message recieved. ");
+    Serial.print("SOLVED: ");
     is_solved = x&1;
+    Serial.print(is_solved);
+    Serial.print("/ EXPLODED: ");
     is_exploded = x&0b10;
+    Serial.print(is_exploded);
+    Serial.print("/ Mistakes amount:");
     mistakes = (x>>2)& 0b11;
+    Serial.print(mistakes);
   }
 }
