@@ -2,6 +2,7 @@
 
 bool is_running = false;
 bool is_solved = false;
+byte requests = 0;
 
 void setup() {
   Wire.begin(20);
@@ -17,7 +18,14 @@ void loop() {
 
 void requestEvent(){
   if (is_running){
-    byte answer = 0b10000000;
+    requests ++;
+    Serial.println(requests);
+    byte answer = 0;
+    if (requests == 100) {
+      answer =  0b00000010;
+      requests -= 100;
+    }
+    else answer = 0;
     Serial.print("Recieved request. Sending message: ");
     Serial.print(answer);
     Serial.println(".");
@@ -38,5 +46,6 @@ void recieveEvent(int howMany){
 
   if (x >> 5 == 0b011) {  //Если системное сообщение
     Serial.println("System message recieved.");
+    
   }
 }

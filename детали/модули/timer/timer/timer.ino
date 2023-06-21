@@ -1,6 +1,8 @@
 #include <QuadDisplay.h>
 #include <Wire.h>
 
+#define MISTAKE1 7
+#define MISTAKE2 6
 #define DISPLAY_PIN 9
 
 long time_play = 0;
@@ -18,6 +20,8 @@ bool game_stopped = true;
 
 void setup() {
   Wire.begin(45);
+  pinMode(MISTAKE1, OUTPUT);
+  pinMode(MISTAKE2, OUTPUT);
   Serial.begin(9600);
   Wire.onRequest(requestEvent); 
   Wire.onReceive(receiveEvent);
@@ -28,7 +32,7 @@ void loop() {
   if (!game_stopped){
     display_update();
     if(!is_exploded && !is_solved){ //Если игра не завершена тем или иным образом
-      if (mils<40 && mils>30 && mistakes != 2) tone(2,2217);  //Играет высокий тон
+      if (mils<40 && mils>30 && mistakes < 2) tone(2,2217);  //Играет высокий тон
       else if ((mils<10)) tone (2,1865);  //Играет низкий тон
       else noTone(2); //замолкает
     } else {
@@ -48,7 +52,7 @@ void loop() {
       }
     }
 
-    if(is_solved && !game_stopped){  //Если игра выиграна
+    if(is_solved){  //Если игра выиграна
       tone(2,262,200);  //Играет победную мелодию
       delay(260);
       tone(2,262,200);
@@ -117,5 +121,16 @@ void receiveEvent(int howMany) {
     Serial.print("/ Mistakes amount:");
     mistakes = (x>>2)& 0b11;
     Serial.print(mistakes);
+  }
+
+  if (x >> 5 == 0b010) {
+    Serial.print("Mistakes arrived.");
+    tone(2, 250, 250);
+    byte ans_mistakes = x & 0b11111;
+    for (int i = 0; i<ans_mistakes; i++) {
+      mistakes ++;
+      if (mistakes == 1) digitalWrite(MISTAKE1, HIGH);
+      if (mistakes == 2) digitalWrite(MISTAKE2, HIGH);
+    }
   }
 }
