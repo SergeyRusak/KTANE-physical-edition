@@ -1,12 +1,28 @@
+#include <LiquidCrystal_I2C.h>
 #include <Wire.h>
 
 #define SOLVED 0b1
 #define SHUTDOWN 0b10
 #define ONE_MISS 0b100
 #define TWO_MISS 0b1000
+
+byte ports_and_batteries = 0;
+
 bool is_gameover = false;
 bool is_error = false;
 bool is_victory = false;
+
+String tags[11] {"SND", "CLR", "CAR", "IND", "FRQ", "SIG", "NSA", "MSA", "TRN", "BOB", "FRK"};
+byte activeTagsIDs[4];
+bool tagsLights[4];
+
+char letters[25] {'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Z'};
+char numbers [10] {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'};
+char serial[6];
+
+bool lastEven = false;
+bool hasVowels = false;
+bool hasLetters = false;
 
 byte mistakes = 0;
 byte c = 0;
@@ -17,9 +33,14 @@ int solved_quantity = 0;
 int loops = 0;
 
 void setup() {
+  for (int i = 13; i > 4; i--){
+    pinMode(i, OUTPUT);
+  }
   delay(100);
   Wire.begin();       
   Serial.begin(9600);
+  randomSeed(analogRead(0));
+  generate_periphery();
   moduleSearch();
   if (!is_error){
     moduleInit();
@@ -193,4 +214,73 @@ void victory() {
     Wire.write((byte)0b01100001);
     Wire.endTransmission();
   }
+}
+
+void generate_periphery() {
+  Serial.print("Генерирую батареи и порты: код генерации ");
+  generate_ports_and_batteries();
+  Serial.print("Генерирую серийный номер: ");
+  generate_serial();
+  Serial.print("Генерирую индикаторы: ");
+  generate_indicators();
+  Serial.println();
+}
+
+void generate_ports_and_batteries() {
+  ports_and_batteries = random(256);
+  Serial.println(ports_and_batteries);
+  
+}
+
+void generate_serial() {
+  char ch;
+  while (!hasLetters) {
+    for (int i = 0; i < 6; i++) {
+      int option = random(2);
+      if (option == 0 && i!=5){
+        ch = letters[random(26)];
+        serial[i] = ch;
+        if (!hasLetters) hasLetters = true;
+        if (ch == 'A' || ch == 'E' || ch == 'I' || ch == 'O' || ch == 'U') hasVowels = true;
+      }
+      else {
+        ch = numbers[random(10)];
+        serial[i] = ch;
+        if (i == 5 && (ch == '2' || ch == '4' || ch == '6' || ch == '8' || ch == '0')) lastEven = true;
+      }
+    Serial.println(ch);
+    }
+  }
+  for (int i = 0; i < 6; i++) {
+    Serial.print(serial[i]);
+  }
+  Serial.println();
+  if (lastEven) {
+    Serial.print("Last digit is even: ");
+    Serial.println(serial[5]);
+  }
+}
+
+void generate_indicators() {
+  bool existFlag = false;
+  byte amount = random(5);
+  for (int i = 0; i < amount; i++) {
+    byte ID = random(11);
+    for (int j = 0; j < i; j++) {
+      if (activeTagsIDs[j] == ID) existFlag = true;
+    }
+    if (!existFlag) activeTagsIDs[i] = ID;
+    else existFlag = false;
+    byte active = random(2);
+    tagsLights[i] = active;
+  }
+  if (amount > 0) {
+    for (int i = 0; i < amount; i++) {
+      Serial.print(tags[activeTagsIDs[i]]);
+      Serial.print(" - ");
+      Serial.print(tagsLights[i]);
+      Serial.print(", ");
+    }
+  }
+  else Serial.println("Индикаторов нет");
 }
