@@ -5,6 +5,7 @@
 #define SHUTDOWN 0b10
 #define ONE_MISS 0b100
 #define TWO_MISS 0b1000
+#define TIME_PIN A1
 
 byte ports_and_batteries = 0;
 
@@ -17,7 +18,6 @@ byte activeTagsIDs[4];
 bool tagsLights[4];
 
 char letters[25] {'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Z'};
-char numbers [10] {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'};
 char serial[6];
 
 bool lastEven = false;
@@ -31,8 +31,11 @@ byte solved[6];
 int module_quantity = 0;
 int solved_quantity = 0;
 int loops = 0;
+int stage_time = 0;
 
 void setup() {
+  stage_time = (analogRead(TIME_PIN)/53) + 1;
+  Serial.println(stage_time);
   for (int i = 13; i > 4; i--){
     pinMode(i, OUTPUT);
   }
@@ -40,6 +43,7 @@ void setup() {
   Wire.begin();       
   Serial.begin(9600);
   randomSeed(analogRead(0));
+  
   generate_periphery();
   moduleSearch();
   if (!is_error){
@@ -82,16 +86,17 @@ void moduleInit(){
     Serial.print("/ ");
     if (modules[i] == 45) {
       Wire.beginTransmission(45);
-      Wire.write(0b10000001);
+      Wire.write(0b10000000 | stage_time);
       Wire.endTransmission();
       Serial.println("Timer data sent.");
     }
     //Условия для других модулей добавляются по мере создания
     if (modules[i] >= 20 & modules[i] <25){
       Wire.beginTransmission(modules[i]);
-      Wire.write(0b10000000);
+      Wire.write(0b10000000 | (lastEven & 0b1));
       Wire.endTransmission();
-      Serial.println("Wires data sent.");
+      Serial.print("Wires data sent.");
+      Serial.println();
     }
     if (modules[i] >= 25 & modules[i] <30){
       Wire.beginTransmission(modules[i]);
@@ -244,7 +249,7 @@ void generate_serial() {
         if (ch == 'A' || ch == 'E' || ch == 'I' || ch == 'O' || ch == 'U') hasVowels = true;
       }
       else {
-        ch = numbers[random(10)];
+        ch = (random(10) + '0');
         serial[i] = ch;
         if (i == 5 && (ch == '2' || ch == '4' || ch == '6' || ch == '8' || ch == '0')) lastEven = true;
       }
