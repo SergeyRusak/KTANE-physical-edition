@@ -121,18 +121,20 @@ void setup() {
 }
 
 void loop() {
-  if (right_wire == 0) generate_wires();
-  else{
-    for (int i = START_WIRE; i < START_WIRE + wires_cnt; i++) {
-      if (ignore_wire[i-START_WIRE] == 1) continue;
-      if (digitalRead(i) == HIGH) {
-        ignore_wire[i-START_WIRE] = 1;
-        if (i-START_WIRE == right_wire) {solve();}
-        else {mistake();}
+  if (is_running) {
+    if (right_wire == 0) generate_wires();
+    else{
+      for (int i = START_WIRE; i < START_WIRE + wires_cnt; i++) {
+        if (ignore_wire[i-START_WIRE] == 1) continue;
+        if (digitalRead(i) == HIGH) {
+          ignore_wire[i-START_WIRE] = 1;
+          if (i-START_WIRE == right_wire) {solve();}
+          else {mistake();}
+        }
       }
     }
+    delay(100);
   }
-  delay(100);
 }
 
 
@@ -162,6 +164,6 @@ void recieveEvent(int howMany){
 
   if (x >> 5 == 0b011) {  //Если системное сообщение
     Serial.println("System message recieved.");
-    
+    if ((x >> 1) & 1 == 1 || x & 1 == 1) is_running = false;
   }
 }
