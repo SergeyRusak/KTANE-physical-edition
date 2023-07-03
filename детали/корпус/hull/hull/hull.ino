@@ -33,7 +33,10 @@ int solved_quantity = 0;
 int loops = 0;
 int stage_time = 0;
 
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
 void setup() {
+  lcd.init();
   stage_time = (analogRead(TIME_PIN)/53) + 1;
   Serial.println(stage_time);
   for (int i = 13; i > 4; i--){
@@ -160,6 +163,7 @@ void error(byte id){
 
 void moduleSearch(){
   for (byte I = 20; I < 45; I++){
+    if (I == 39) continue;
     //Serial.print("Trying ID = ");
     //Serial.print(I);
     Wire.beginTransmission(I);
@@ -283,6 +287,10 @@ void generate_serial() {
     Serial.print("Last digit is even: ");
     Serial.println(serial[5]);
   }
+  lcd.backlight();
+  lcd.setCursor(0,0);
+  lcd.print("Serial: ");
+  for (int i = 0; i < 6; i++) lcd.print(serial[i]);
 }
 
 void generate_indicators() {
@@ -304,6 +312,9 @@ void generate_indicators() {
       Serial.print(" - ");
       Serial.print(tagsLights[i]);
       Serial.print(", ");
+      lcd.setCursor(4*i, 1);
+      lcd.print(tags[activeTagsIDs[i]]);
+      if (tagsLights[i]) lcd.print("█");
     }
   }
   else Serial.println("Индикаторов нет");
