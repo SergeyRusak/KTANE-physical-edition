@@ -62,6 +62,13 @@ void loop() {
         Serial.println(c,BIN);
       }
       if (modules[i] == 45) {
+        for (int j = 0; j < module_quantity; j++){
+          if (modules[j] >= 25 && modules[j] < 30) {
+            Wire.beginTransmission(modules[j]);
+            Wire.write(c | 0b01000000);
+            Wire.endTransmission();
+          }
+        }
         if (c & 1 == 1 && !is_gameover){ 
           Serial.println("Time's out!");
           gameover();
@@ -100,7 +107,19 @@ void moduleInit(){
     }
     if (modules[i] >= 25 & modules[i] <30){
       Wire.beginTransmission(modules[i]);
-      Wire.write(0b10000000);
+      byte msg = 0b10000000;
+      for (int i = 0; i < 5; i++) {
+        switch (activeTagsIDs[i]){
+          case 2:
+            msg |= 0b10;
+            break;
+          case 10:
+            msg |= 0b1;
+            break;
+        }
+      }
+      msg |= (ports_and_batteries >> 4) & 0b00001100;
+      Wire.write(msg);
       Wire.endTransmission();
       Serial.println("Button data sent.");
     }
