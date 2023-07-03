@@ -141,10 +141,12 @@ void loop() {
 void requestEvent(){
   if (is_running){
     byte answer = 0;
-    answer |= (mistakes << 2) | (is_solved&1 << 1) | (is_error&1);
+    answer |= (mistakes << 2) | ((is_solved&1) << 1) | (is_error&1);
     Serial.print("Recieved request. Sending message: ");
-    Serial.print(answer);
-    Serial.println(".");
+    Serial.print(answer,BIN);
+    Serial.print(" ("); 
+    Serial.print(is_solved&1 <<1,BIN);
+    Serial.println(").");
     Wire.write(answer);
     mistakes = 0;
   }
