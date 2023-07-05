@@ -6,6 +6,7 @@
 #define ONE_MISS 0b100
 #define TWO_MISS 0b1000
 #define TIME_PIN A1
+#define BATTERY_LED_START 7
 
 byte ports_and_batteries = 0;
 
@@ -33,7 +34,10 @@ int solved_quantity = 0;
 int loops = 0;
 int stage_time = 0;
 
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
 void setup() {
+  lcd.init();
   stage_time = (analogRead(TIME_PIN)/53) + 1;
   Serial.println(stage_time);
   for (int i = 13; i > 4; i--){
@@ -62,6 +66,13 @@ void loop() {
         Serial.println(c,BIN);
       }
       if (modules[i] == 45) {
+        for (int j = 0; j < module_quantity; j++){
+          if (modules[j] >= 25 && modules[j] < 30) {
+            Wire.beginTransmission(modules[j]);
+            Wire.write(c | 0b01000000);
+            Wire.endTransmission();
+          }
+        }
         if (c & 1 == 1 && !is_gameover){ 
           Serial.println("Time's out!");
           gameover();
@@ -100,7 +111,19 @@ void moduleInit(){
     }
     if (modules[i] >= 25 & modules[i] <30){
       Wire.beginTransmission(modules[i]);
-      Wire.write(0b10000000);
+      byte msg = 0b10000000;
+      for (int i = 0; i < 5; i++) {
+        switch (activeTagsIDs[i]){
+          case 2:
+            msg |= 0b10;
+            break;
+          case 10:
+            msg |= 0b1;
+            break;
+        }
+      }
+      msg |= (ports_and_batteries >> 4) & 0b00001100;
+      Wire.write(msg);
       Wire.endTransmission();
       Serial.println("Button data sent.");
     }
@@ -141,6 +164,7 @@ void error(byte id){
 
 void moduleSearch(){
   for (byte I = 20; I < 45; I++){
+    if (I == 39) continue;
     //Serial.print("Trying ID = ");
     //Serial.print(I);
     Wire.beginTransmission(I);
@@ -233,7 +257,19 @@ void generate_periphery() {
 
 void generate_ports_and_batteries() {
   ports_and_batteries = random(256);
-  Serial.println(ports_and_batteries);
+  Serial.print(ports_and_batteries);
+  byte batteries = (ports_and_batteries >> 6) & 0b11;
+  Serial.print(" Количество батарей: ");
+  Serial.println(batteries);
+  if (batteries >0) {
+    for (int i = 0; i < batteries; i++) {
+      digitalWrite(BATTERY_LED_START - i, HIGH);
+    }
+  } else {
+    for (int i = BATTERY_LED_START; i > 4; i--) {
+      digitalWrite(i, LOW);
+    }
+  }
   
 }
 
@@ -264,6 +300,10 @@ void generate_serial() {
     Serial.print("Last digit is even: ");
     Serial.println(serial[5]);
   }
+  lcd.backlight();
+  lcd.setCursor(0,0);
+  lcd.print("Serial: ");
+  for (int i = 0; i < 6; i++) lcd.print(serial[i]);
 }
 
 void generate_indicators() {
@@ -285,6 +325,9 @@ void generate_indicators() {
       Serial.print(" - ");
       Serial.print(tagsLights[i]);
       Serial.print(", ");
+      lcd.setCursor(4*i, 1);
+      lcd.print(tags[activeTagsIDs[i]]);
+      if (tagsLights[i]) lcd.print("█");
     }
   }
   else Serial.println("Индикаторов нет");
