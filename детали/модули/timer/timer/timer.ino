@@ -1,5 +1,6 @@
 #include <QuadDisplay.h>
 #include <Wire.h>
+#include <Tone.h>
 
 #define MISTAKE1 7
 #define MISTAKE2 6
@@ -9,7 +10,7 @@ long time_play = 0;
 long start_tick_time;
 long cur_time;
 byte mistakes = 0;
-
+Tone t1,t2;
 int minutes = 0;
 int seconds = 0;
 int mils = 0;
@@ -25,24 +26,29 @@ void setup() {
   Serial.begin(9600);
   Wire.onRequest(requestEvent); 
   Wire.onReceive(receiveEvent);
+  t1.begin(2);
+  t2.begin(3);
   Serial.println("Timer is on. Awaiting time data.");
+  displayDigits(DISPLAY_PIN,QD_MINUS,QD_MINUS,QD_MINUS,QD_MINUS);
 }
 
 void loop() {
   if (!game_stopped){
     display_update();
-    if(!is_exploded && !is_solved){ //Если игра не завершена тем или иным образом
-      if (mils<40 && mils>30 && mistakes < 2) tone(2,2217);  //Играет высокий тон
-      else if ((mils<10)) tone (2,1865);  //Играет низкий тон
-      else noTone(2); //замолкает
+    if(!is_exploded && !is_solved){
+      if(minutes==0 && seconds %3==0 && mils<50){t2.play(100,500);}//Если игра не завершена тем или иным образом
+      if (mils<40 && mils>30 && mistakes < 2) t1.play(2217);  //Играет высокий тон
+      else if ((mils<10)) t1.play (1865);  //Играет низкий тон
+      else t1.stop();//замолкает
+      
     } else {
-      noTone(2);  //Если игра закончена - просто молчит
+      t1.stop();  //Если игра закончена - просто молчит
     }
   
     if (is_exploded){
-      tone(2,69,200); //Играет мелодию проигрыша
+      t1.play(69,200); //Играет мелодию проигрыша
       delay(210);
-      tone(2,65,800);
+      t1.play(65,800);
       game_stopped = true; //Ставит флаг о проигрыше
       while(true){  //Уходит в постоянное мигание
         displayClear(DISPLAY_PIN);
@@ -53,11 +59,11 @@ void loop() {
     }
 
     if(is_solved){  //Если игра выиграна
-      tone(2,262,200);  //Играет победную мелодию
+      t1.play(262,200);  //Играет победную мелодию
       delay(260);
-      tone(2,262,200);
+      t1.play(262,200);
       delay(210);
-      tone(2,392,600);
+      t1.play(392,600);
       delay(660);
       game_stopped = true;  //Останавливает игру    
     }
@@ -125,7 +131,7 @@ void receiveEvent(int howMany) {
 
   if (x >> 5 == 0b010) {
     Serial.print("Mistakes arrived.");
-    tone(2, 250, 250);
+    t2.play(250, 250);
     byte ans_mistakes = x & 0b11111;
     for (int i = 0; i<ans_mistakes; i++) {
       mistakes ++;
