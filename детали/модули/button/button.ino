@@ -39,6 +39,11 @@ void generate() {
   strip[text_ID] = colors[btnclr_ID];
   FastLED.show();
   need_tapping = calculate();
+  Serial.print(btnclr_ID);
+  Serial.print("/");
+  Serial.print(strclr_ID);
+  Serial.print("/");
+  Serial.println(text_ID);
 }
 
 bool calculate() {
@@ -60,10 +65,50 @@ void setup() {
 
 void loop() {
   if (is_running) {
-    if (digitalRead(BTN_PIN) == HIGH) {
-      btn_pressed = millis();
+    if (digitalRead(BTN_PIN) == HIGH && btn_pressed != 0) {
+      btn_pressed = millis(); //Регистрирует время нажатия кнопки
+      Serial.println("Button pressed");
+    }
+    else {
+      pressed_process();
     }
   }
+}
+
+void pressed_process() {
+  if (digitalRead(BTN_PIN) == LOW) {  //Тело функции сработает при отпускании кнопки
+    
+    long released = millis();         //Измеряем длину зажатия кнопки
+    long pressed = released - btn_pressed;
+    if (need_tapping && pressed < 300) is_solved = true;  //Если касание было коротким и так и надо было - победа.
+    else if (!need_tapping) {  //Если же нужно удердживать...
+      switch (strclr_ID){
+          case 3:
+            if ((time_data >> 1) & 0b1 == 1) solve(); //Если цвет полосы - синий и на часах есть 4 - победа.
+            break;
+          case 4: //Если цвет полосы - жёлтый и на часах есть 5 - победа.
+            if (time_data & 0b1 == 1) solve();
+            break;
+          default:  //Если цвет полосы любой другой - ждём единицу.
+            if ((time_data >> 2) & 0b1 == 1) solve();
+      }
+    }
+    else mistake();
+  }
+}
+
+void mistake() {
+  mistakes ++;
+  strip[LED_COUNT] = CRGB::Red;
+  FastLED.show();
+  Serial.println("");
+}
+
+void solve() {
+  is_solved = true;
+  strip[LED_COUNT] = CRGB::Green;
+  FastLED.show();
+  Serial.println("");
 }
 
 void requestEvent(){
@@ -100,6 +145,6 @@ void recieveEvent(int howMany){
 
   if (x >> 5 == 0b010) {  //Если обновление данных
     Serial.println("Data update recieved.");
-    time_data = (x >> 1) & 0b00001110;
+    time_data = (x >> 1) & 0b111;
   }
 }

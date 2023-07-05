@@ -6,6 +6,7 @@
 #define ONE_MISS 0b100
 #define TWO_MISS 0b1000
 #define TIME_PIN A1
+#define BATTERY_LED_START 7
 
 byte ports_and_batteries = 0;
 
@@ -256,7 +257,19 @@ void generate_periphery() {
 
 void generate_ports_and_batteries() {
   ports_and_batteries = random(256);
-  Serial.println(ports_and_batteries);
+  Serial.print(ports_and_batteries);
+  byte batteries = (ports_and_batteries >> 6) & 0b11;
+  Serial.print(" Количество батарей: ");
+  Serial.println(batteries);
+  if (batteries >0) {
+    for (int i = 0; i < batteries; i++) {
+      digitalWrite(BATTERY_LED_START - i, HIGH);
+    }
+  } else {
+    for (int i = BATTERY_LED_START; i > 4; i--) {
+      digitalWrite(i, LOW);
+    }
+  }
   
 }
 
